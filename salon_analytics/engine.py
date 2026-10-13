@@ -8,7 +8,7 @@ from .attribution import Booking, Shift, attribute
 from .checks import HeadCount, Violation, run_all
 from .config import SalonConfig
 from .models import FaceCandidate, MasterDay, Outage, Person, Tick, TrackEvent, Visit
-from .photos import KnownFace, apply_photos
+from .photos import KnownFace, apply_photos, master_photos
 from .sittings import find_sittings
 from .staff import master_days
 from .visits import build_visits
@@ -39,6 +39,7 @@ class DayResult:
     coverage: float
     journal: list[TrackEvent]
     crm_checks: Optional[int] = None
+    master_photos: dict = field(default_factory=dict)   # имя мастера → PhotoChoice
 
     @property
     def review_queue(self) -> list[Visit]:
@@ -63,7 +64,7 @@ def analyze_day(inp: DayInput, cfg: SalonConfig) -> DayResult:
     for v in visits:
         attribute(v, cfg, inp.shifts, inp.bookings)
         v.service_hint = inp.service_hints.get(v.visit_id, "")
-    apply_photos(visits, inp.faces, p, inp.face_history)
+    apply_photos(visits, inp.faces, p, inp.face_history, inp.persons)
     days = master_days(inp.ticks, inp.persons, visits, cfg)
     violations = run_all(inp.ticks, inp.persons, visits, days, cfg, inp.headcounts, inp.crm_checks)
 
@@ -78,4 +79,5 @@ def analyze_day(inp: DayInput, cfg: SalonConfig) -> DayResult:
     t1 = max((t.t + t.dt for t in inp.ticks), default=0.0)
     cameras = inp.cameras or list(cfg.cameras)
     return DayResult(visits, possible, days, violations,
-                     camera_coverage(inp.outages, cameras, t0, t1), journal, inp.crm_checks)
+                     camera_coverage(inp.outages, cameras, t0, t1), journal, inp.crm_checks,
+                     master_photos(inp.persons, inp.faces, visits, p))

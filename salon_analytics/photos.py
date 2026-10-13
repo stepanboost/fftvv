@@ -5,8 +5,10 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from .config import Params
-from .models import FaceCandidate, PhotoChoice, Visit
+from .models import FaceCandidate, Person, PhotoChoice, Role, Visit
 from .similarity import cosine
+
+STAFF_ROLES = (Role.MASTER, Role.ADMIN, Role.STAFF_UNKNOWN)
 
 # ценность источника: камера входа/кассы анфас > зеркало > потолок
 SOURCE_WEIGHT = {"entrance": 1.0, "mirror": 0.8, "ceiling": 0.5}
@@ -64,14 +66,70 @@ def repeat_status(choice: PhotoChoice, history: Iterable[KnownFace], p: Params,
     return "", None
 
 
+def _max_cos(v: list[float], gallery: Iterable[list[float]]) -> float:
+    return max((cosine(v, g) for g in gallery), default=0.0)
+
+
+def guard(cands: Iterable[FaceCandidate], own: list[list[float]], foreign: list[list[float]],
+          p: Params) -> list[FaceCandidate]:
+    """Не путать мастера и клиента на фото.
+
+    С потолка мастер стоит вплотную к клиенту, и кадр «лица клиента» легко
+    оказывается лицом мастера (или соседа в кресле рядом). Кадр отбрасывается,
+    если похож на чужое лицо сильнее порога и не похож на своё заметно сильнее.
+    """
+    kept = []
+    for c in cands:
+        if c.embedding is not None and foreign:
+            f = _max_cos(c.embedding, foreign)
+            o = _max_cos(c.embedding, own) if own else 0.0
+            if f > p.photo_foreign_cos and not (own and o > f + p.photo_own_margin):
+                continue
+        kept.append(c)
+    return kept
+
+
+def _overlaps(a0: float, a1: float, b0: float, b1: float) -> bool:
+    return a0 < b1 and b0 < a1
+
+
 def apply_photos(visits: list[Visit], faces: dict[str, list[FaceCandidate]], p: Params,
-                 history: Iterable[KnownFace] = ()) -> None:
+                 history: Iterable[KnownFace] = (), persons: Optional[dict[str, Person]] = None) -> None:
     history = list(history)
+    persons = persons or {}
+    staff = [e for pr in persons.values() if pr.role in STAFF_ROLES for e in pr.face]
     for i, v in enumerate(visits, 1):
+        own = [e for g in v.gids for e in persons.get(g, Person(g)).face]
+        if not v.staff_client:
+            # галерея клиента могла набрать лицо мастера — такие эмбеддинги не «свои»
+            own = [e for e in own if _max_cos(e, staff) <= p.photo_foreign_cos]
+        # чужие: все сотрудники и клиенты, которые были в салоне одновременно
+        neighbours = [e for w in visits if w is not v and _overlaps(v.start, v.end, w.start, w.end)
+                      for g in w.gids for e in persons.get(g, Person(g)).face]
+        foreign = neighbours if v.staff_client else staff + neighbours
         cands = [c for g in v.gids for c in faces.get(g, []) if v.start <= c.t <= v.end]
-        v.photo = choose_photo(cands, p)
+        v.photo = choose_photo(guard(cands, own, foreign, p), p)
         v.client_label = f"№{i}"
         if not v.photo.has_face:
             v.review_reasons.append("лица нет")
         note, _ = repeat_status(v.photo, history, p, before=v.start)
         v.repeat_note = note
+
+
+def master_photos(persons: dict[str, Person], faces: dict[str, list[FaceCandidate]],
+                  visits: list[Visit], p: Params) -> dict[str, PhotoChoice]:
+    """Фото мастера с камеры: только кадры его собственных ID, сверенные с
+    лицами клиентов и других мастеров. Кадр, уже стоящий у клиента, не берётся."""
+    client_paths = {c.path for v in visits if v.photo for c in [v.photo.best, *v.photo.spares] if c}
+    client_faces = [e for v in visits for g in v.gids for e in persons.get(g, Person(g)).face]
+    by_name: dict[str, list[str]] = {}
+    for gid, pr in persons.items():
+        if pr.role == Role.MASTER:
+            by_name.setdefault(pr.name or gid, []).append(gid)
+    out = {}
+    for name, gids in by_name.items():
+        own = [e for g in gids for e in persons[g].face]
+        other_masters = [e for n, gs in by_name.items() if n != name for g in gs for e in persons[g].face]
+        cands = [c for g in gids for c in faces.get(g, []) if c.path not in client_paths]
+        out[name] = choose_photo(guard(cands, own, client_faces + other_masters, p), p)
+    return out

@@ -40,7 +40,10 @@ def master_days(ticks: list[Tick], persons: dict[str, Person], visits: list[Visi
 
     for v in visits:
         if v.master in days:
-            days[v.master].clients += 1
+            if v.staff_client:
+                days[v.master].colleagues += 1    # стриг коллегу — не клиент
+            else:
+                days[v.master].clients += 1
         for s in v.segments:
             if s.accepted or cfg.chair_kind(s.chair) == "wash":
                 for m, sec in s.hands_s.items():

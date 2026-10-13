@@ -45,6 +45,8 @@ class Params:
     face_max_yaw_deg: float = 30
     face_min_sharpness: float = 0.4
     photo_spares: int = 3
+    photo_foreign_cos: float = 0.5     # кадр похож на чужое лицо (мастер ↔ клиент) — выбросить
+    photo_own_margin: float = 0.1      # ...если на своё лицо он похож не заметно сильнее
     retention_days: int = 90
     # 8 отчёт
     review_conf: float = 0.7

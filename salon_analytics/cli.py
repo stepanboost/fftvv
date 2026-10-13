@@ -13,11 +13,11 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from . import markup, report, storage
+from . import markup, masters_page, report, storage
 from .config import default_config, load_config
 from .engine import DayInput, analyze_day
 from .models import FaceCandidate, Outage, Person, Role, Tick
-from .sim import crowded_day, demo_day
+from .sim import crowded_day, demo_day, write_demo_photos
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config" / "salon.yaml"
 
@@ -40,7 +40,7 @@ def load_input(args) -> DayInput:
     return DayInput(ticks, persons, faces, outages, crm_checks=args.crm_checks)
 
 
-def write_outputs(r, cfg, out: Path, db: str | None) -> None:
+def write_outputs(r, cfg, out: Path, db: str | None, photos_base: str | Path = ".") -> None:
     out.mkdir(parents=True, exist_ok=True)
     (out / "visits.csv").write_text(report.to_csv(r, cfg), encoding="utf-8-sig")
     payload = {
@@ -52,6 +52,7 @@ def write_outputs(r, cfg, out: Path, db: str | None) -> None:
     }
     (out / "day.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (out / "telegram.txt").write_text(report.telegram_summary(r, cfg), encoding="utf-8")
+    (out / "masters.html").write_text(masters_page.render(r, cfg, photos_base), encoding="utf-8")
     if db and r.visits:
         day = datetime.fromtimestamp(r.visits[0].start, report.salon_tz(cfg)).strftime("%Y-%m-%d")
         storage.save_day(storage.connect(db), day, r, cfg)
@@ -73,6 +74,7 @@ def main(argv: list[str] | None = None) -> None:
             sp.add_argument("--persons", required=True)
             sp.add_argument("--faces")
             sp.add_argument("--outages")
+            sp.add_argument("--photos", default=".", help="папка, от которой считаются пути фото")
     mp = sub.add_parser("markup", help="проверка разметки камер и реестра кресел")
     mp.add_argument("--config", default=str(DEFAULT_CONFIG))
     pp = sub.add_parser("probe", help="подключиться к регистратору и проверить все камеры")
@@ -111,10 +113,12 @@ def main(argv: list[str] | None = None) -> None:
             cfg = load_config(DEFAULT_CONFIG)
         b = crowded_day() if args.crowded else demo_day()
         inp = DayInput(b.ticks, b.persons, b.faces, crm_checks=args.crm_checks)
+        write_demo_photos(b, Path(args.out))
+        args.photos = args.out
     else:
         inp = load_input(args)
     r = analyze_day(inp, cfg)
-    write_outputs(r, cfg, Path(args.out), args.db)
+    write_outputs(r, cfg, Path(args.out), args.db, getattr(args, "photos", "."))
     print(report.telegram_summary(r, cfg))
 
 

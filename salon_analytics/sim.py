@@ -4,7 +4,10 @@
 """
 from __future__ import annotations
 
+import struct
+import zlib
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from .models import ZONE_ENTRANCE, FaceCandidate, Person, Role, Tick
@@ -58,7 +61,7 @@ class DayBuilder:
     def face(self, gid: str, m: float, source: str = "entrance", size: float = 120, yaw: float = 5,
              emb: Optional[list[float]] = None, path: Optional[str] = None) -> None:
         self.faces.setdefault(gid, []).append(FaceCandidate(
-            gid=gid, t=self.at(m), source=source, path=path or f"faces/{gid}_{int(m)}.jpg",
+            gid=gid, t=self.at(m), source=source, path=path or f"faces/{gid}_{int(m)}.png",
             size_px=size, yaw_deg=yaw, sharpness=0.8, eyes_open=True, occluded=False, embedding=emb))
 
     def service(self, client: str, master: str, chair: str, zone: str, m0: float, m1: float,
@@ -139,15 +142,20 @@ def crowded_day() -> DayBuilder:
     когда первый уходит. Ещё двое вошли компанией и сидят на диване.
     """
     b = DayBuilder()
-    b.person("m1", Role.MASTER, "Регина")
-    b.person("m2", Role.MASTER, "Алексей")
+    b.person("m1", Role.MASTER, "Регина", face=[0, 0, 0, 0, 1, 0])
+    b.person("m2", Role.MASTER, "Алексей", face=[0, 0, 0, 0, 0, 1])
     for gid in ("m1", "m2"):
         b.enter(gid, 0)
-    for gid, face in (("c1", [1, 0, 0, 0]), ("c2", [0, 1, 0, 0]), ("c3", [0, 0, 1, 0]), ("c4", [0, 0, 0, 1])):
+        b.face(gid, 0.2, emb=b.persons[gid].face[0])
+    for gid, face in (("c1", [1, 0, 0, 0, 0, 0]), ("c2", [0, 1, 0, 0, 0, 0]),
+                      ("c3", [0, 0, 1, 0, 0, 0]), ("c4", [0, 0, 0, 1, 0, 0])):
         b.person(gid, face=face)
     b.enter("c1", 5); b.enter("c2", 5); b.enter("c3", 6); b.enter("c4", 20)
     for gid, m in (("c1", 5), ("c2", 5), ("c3", 6), ("c4", 20)):
         b.face(gid, m + 0.2, emb=b.persons[gid].face[0])
+    # Алексей наклонился над c2 — его лицо попало в трек клиента, кадр крупный и резкий.
+    # Сверка лиц обязана его выбросить: у c2 останется своё фото.
+    b.face("c2", 30, size=220, emb=[0, 0.1, 0, 0, 0, 0.99], path="faces/c2_30_alexey.png")
     b.stay("c1", "hall_a", 6, 50, chair="2-1")
     b.stay("c2", "hall_a", 6, 70, chair="2-2")
     b.stay("c3", "hall_a", 7, 90, chair="2-3")
@@ -170,3 +178,30 @@ def crowded_day() -> DayBuilder:
     b.stay("g1", "hall_a", 10.5, 60); b.stay("g2", "hall_a", 10.5, 60)
     b.leave("g1", 61); b.leave("g2", 61)
     return b
+
+
+def _png(path: Path, w: int, h: int, pixel) -> None:
+    raw = b"".join(b"\x00" + bytes(c for x in range(w) for c in pixel(x, y)) for y in range(h))
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+def write_demo_photos(b: DayBuilder, base: Path, size: int = 96) -> None:
+    """Картинки-заглушки для демо: у каждого человека свой цвет «лица»."""
+    palette = [(214, 120, 90), (90, 150, 214), (120, 190, 110), (200, 170, 70),
+               (170, 110, 200), (90, 190, 190), (220, 110, 160), (150, 150, 150)]
+    colors: dict[str, tuple[int, int, int]] = {}
+    for gid, cands in b.faces.items():
+        for c in cands:
+            key = c.path.rsplit("_", 1)[-1] if "alexey" in c.path else gid
+            col = colors.setdefault(key, palette[len(colors) % len(palette)])
+            bg = tuple(int(v * 0.35 + 150) for v in col)
+            r = size / 2
+            def px(x, y, col=col, bg=bg):
+                head = ((x - r) / (r * 0.55)) ** 2 + ((y - r * 0.85) / (r * 0.68)) ** 2 <= 1
+                body = y > r * 1.45 and abs(x - r) < r * 0.8
+                return col if head or body else bg
+            _png(base / c.path, size, size, px)

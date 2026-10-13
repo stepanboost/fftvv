@@ -168,6 +168,7 @@ class MasterDay:
     on_site_s: float = 0.0
     work_s: float = 0.0
     clients: int = 0
+    colleagues: int = 0
 
     @property
     def load(self) -> float:
