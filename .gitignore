@@ -4,3 +4,9 @@ __pycache__/
 out/
 *.db
 .pytest_cache/
+models/
+data/
+probe/
+.env
+logs/
+masters/

@@ -28,10 +28,12 @@ class Params:
     lost_id_wait_s: float = 30 * MIN
     visit_max_s: float = 9 * 3600
     stitch_max_gap_s: float = 30 * MIN
-    stitch_face_cos: float = 0.5
+    # пороги лица — под SFace (OpenCV Zoo): «тот же человек» от 0.363
+    face_same_cos: float = 0.40
+    stitch_face_cos: float = 0.40
     stitch_reid_cos: float = 0.7
-    repeat_face_cos: float = 0.6
-    possible_repeat_face_cos: float = 0.5
+    repeat_face_cos: float = 0.55
+    possible_repeat_face_cos: float = 0.40
     # 5 мастера
     second_master_share: float = 0.20
     staff_exit_min_s: float = 2 * MIN
@@ -40,12 +42,14 @@ class Params:
     booking_bonus: float = 0.10
     booking_window_s: float = 30 * MIN
     admin_votes: bool = False
+    master_min_face_frames: int = 2      # мастер опознан, если лицо совпало хотя бы на 2 кадрах
+    staff_presence_s: float = 3 * 3600   # в салоне > 3 ч и лицом не опознан — «сотрудник?»
     # 6 фото
     face_min_px: float = 80
     face_max_yaw_deg: float = 30
     face_min_sharpness: float = 0.4
     photo_spares: int = 3
-    photo_foreign_cos: float = 0.5     # кадр похож на чужое лицо (мастер ↔ клиент) — выбросить
+    photo_foreign_cos: float = 0.40    # кадр похож на чужое лицо (мастер ↔ клиент) — выбросить
     photo_own_margin: float = 0.1      # ...если на своё лицо он похож не заметно сильнее
     retention_days: int = 90
     # 8 отчёт
