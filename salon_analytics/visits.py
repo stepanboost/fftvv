@@ -60,13 +60,18 @@ def stitch(frags: list[Fragment], persons: dict[str, Person], cfg: SalonConfig,
            journal: list[TrackEvent]) -> None:
     """Склеивает куски разных ID одного человека: разрыв < 30 мин и совпало
     лицо (> 0.5) или одежда (> 0.7). После честного выхода через вход окно
-    20 мин: вернулся позже — это повторный визит."""
+    20 мин: вернулся позже — это повторный визит.
+
+    Когда в салоне одновременно много клиентов, на один оборванный кусок
+    претендуют несколько. Пары перебираются по убыванию сходства, и каждый
+    кусок склеивается не больше чем с одним — побеждает самый похожий, а не
+    тот, кто раньше попался.
+    """
     p = cfg.params
-    for later in frags:
-        best: Fragment | None = None
-        best_sim = 0.0
-        for earlier in frags:
-            if earlier is later or earlier.gid == later.gid or earlier.next is not None:
+    pairs: list[tuple[float, int, int]] = []
+    for j, later in enumerate(frags):
+        for i, earlier in enumerate(frags):
+            if earlier is later or earlier.gid == later.gid:
                 continue
             gap = later.start - earlier.end
             # вышел через вход и вернулся: тот же визит только при отсутствии ≤ 20 мин
@@ -77,12 +82,15 @@ def stitch(frags: list[Fragment], persons: dict[str, Person], cfg: SalonConfig,
             if a is None or b is None:
                 continue
             ok, sim = same_person(a.face, b.face, a.reid, b.reid, p.stitch_face_cos, p.stitch_reid_cos)
-            if ok and sim > best_sim:
-                best, best_sim = earlier, sim
-        if best is not None:
-            best.next, later.prev, later.sim = later, best, best_sim
-            journal.append(TrackEvent(later.start, later.gid, "склеен",
-                                      f"с {best.gid}, сходство {best_sim:.2f}"))
+            if ok:
+                pairs.append((sim, i, j))
+    for sim, i, j in sorted(pairs, key=lambda x: -x[0]):
+        earlier, later = frags[i], frags[j]
+        if earlier.next is not None or later.prev is not None:
+            continue
+        earlier.next, later.prev, later.sim = later, earlier, sim
+        journal.append(TrackEvent(later.start, later.gid, "склеен",
+                                  f"с {earlier.gid}, сходство {sim:.2f}"))
 
 
 def _overlaps(a0: float, a1: float, b0: float, b1: float) -> bool:

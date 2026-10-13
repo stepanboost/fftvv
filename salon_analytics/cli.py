@@ -16,7 +16,7 @@ from . import markup, report, storage
 from .config import default_config, load_config
 from .engine import DayInput, analyze_day
 from .models import FaceCandidate, Outage, Person, Role, Tick
-from .sim import demo_day
+from .sim import crowded_day, demo_day
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config" / "salon.yaml"
 
@@ -65,6 +65,8 @@ def main(argv: list[str] | None = None) -> None:
         sp.add_argument("--out", default="out")
         sp.add_argument("--db", default=None)
         sp.add_argument("--crm-checks", type=int, default=None)
+        if name == "demo":
+            sp.add_argument("--crowded", action="store_true", help="зал битком: 3+ клиента в кадре")
         if name == "report":
             sp.add_argument("--ticks", required=True)
             sp.add_argument("--persons", required=True)
@@ -82,7 +84,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "demo":
         if not args.config:
             cfg = load_config(DEFAULT_CONFIG)
-        b = demo_day()
+        b = crowded_day() if args.crowded else demo_day()
         inp = DayInput(b.ticks, b.persons, b.faces, crm_checks=args.crm_checks)
     else:
         inp = load_input(args)

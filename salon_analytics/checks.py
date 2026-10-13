@@ -66,14 +66,24 @@ def visits_have_bounds(visits: list[Visit]) -> list[Violation]:
     return out
 
 
-def master_one_client_per_minute(ticks: list[Tick], persons: dict[str, Person]) -> list[Violation]:
-    chairs: dict[tuple[str, int], set[str]] = defaultdict(set)
+def master_one_client_per_minute(ticks: list[Tick], persons: dict[str, Person],
+                                 min_s: float = 20.0) -> list[Violation]:
+    """Мастер не работает руками с двумя клиентами в одну минуту.
+
+    Переход от одного кресла к соседнему внутри минуты — норма, поэтому
+    нарушение, только если у двух и более кресел набралось ≥ min_s секунд.
+    """
+    secs: dict[tuple[str, int], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for t in ticks:
         pr = persons.get(t.gid)
-        if pr and pr.role == Role.MASTER and t.hands_on and t.ring_chair:
-            chairs[(pr.name or t.gid, int(t.t // 60))].add(t.ring_chair)
-    return [Violation("мастер руками у двух клиентов", m * 60.0, name, ", ".join(sorted(c)))
-            for (name, m), c in sorted(chairs.items()) if len(c) > 1]
+        if pr and pr.role == Role.MASTER and t.hands_target:
+            secs[(pr.name or t.gid, int(t.t // 60))][t.hands_target] += t.dt
+    out = []
+    for (name, m), per_chair in sorted(secs.items()):
+        busy = sorted(c for c, s in per_chair.items() if s >= min_s)
+        if len(busy) > 1:
+            out.append(Violation("мастер руками у двух клиентов", m * 60.0, name, ", ".join(busy)))
+    return out
 
 
 def master_visits_in_intervals(visits: list[Visit], days: dict[str, MasterDay]) -> list[Violation]:

@@ -29,13 +29,14 @@ class DayBuilder:
         return p
 
     def stay(self, gid: str, zone: str, m0: float, m1: float, *, chair: Optional[str] = None,
-             ring_chair: Optional[str] = None, hands: bool = False, cameras_ok: bool = True) -> None:
+             ring_chair: Optional[str] = None, hands: bool = False, cameras_ok: bool = True,
+             hands_chair: Optional[str] = None) -> None:
         t = self.at(m0)
         end = self.at(m1)
         while t < end:
             self.ticks.append(Tick(t=t, gid=gid, zone=zone, dt=self.dt, chair=chair,
                                    sitting=chair is not None, ring_chair=ring_chair,
-                                   hands_on=hands, cameras_ok=cameras_ok))
+                                   hands_on=hands, cameras_ok=cameras_ok, hands_chair=hands_chair))
             t += self.dt
 
     def fill(self, gid: str, zone: str, m0: float, m1: float) -> None:
@@ -127,4 +128,45 @@ def demo_day() -> DayBuilder:
             b.fill(gid, "hall_a", 195.5, end - 0.5)
         else:
             b.fill(gid, "hall_a", start + 0.5, end - 0.5)
+    return b
+
+
+def crowded_day() -> DayBuilder:
+    """Зал 2 битком: три клиента в 2-1, 2-2, 2-3 одновременно и два мастера.
+
+    Регина стрижёт 2-1, потом наносит краску в 2-3, стоя ближе к 2-2;
+    Алексей ведёт 2-2. Четвёртый клиент ждёт на диване и садится в 2-1,
+    когда первый уходит. Ещё двое вошли компанией и сидят на диване.
+    """
+    b = DayBuilder()
+    b.person("m1", Role.MASTER, "Регина")
+    b.person("m2", Role.MASTER, "Алексей")
+    for gid in ("m1", "m2"):
+        b.enter(gid, 0)
+    for gid, face in (("c1", [1, 0, 0, 0]), ("c2", [0, 1, 0, 0]), ("c3", [0, 0, 1, 0]), ("c4", [0, 0, 0, 1])):
+        b.person(gid, face=face)
+    b.enter("c1", 5); b.enter("c2", 5); b.enter("c3", 6); b.enter("c4", 20)
+    for gid, m in (("c1", 5), ("c2", 5), ("c3", 6), ("c4", 20)):
+        b.face(gid, m + 0.2, emb=b.persons[gid].face[0])
+    b.stay("c1", "hall_a", 6, 50, chair="2-1")
+    b.stay("c2", "hall_a", 6, 70, chair="2-2")
+    b.stay("c3", "hall_a", 7, 90, chair="2-3")
+    b.stay("c4", "hall_a", 20.5, 52)          # ждёт на диване
+    b.stay("c4", "hall_a", 52, 85, chair="2-1")
+    # Регина: 2-1 руками, затем краска в 2-3, геометрически ближе к 2-2
+    b.stay("m1", "hall_a", 6, 46, ring_chair="2-1", hands=True)
+    b.stay("m1", "hall_a", 46, 52, ring_chair="2-1")                       # убирает место
+    b.stay("m1", "hall_a", 52, 70, ring_chair="2-2", hands_chair="2-3")
+    b.stay("m1", "hall_a", 70, 85, ring_chair="2-1", hands_chair="2-1")    # c4 в 2-1
+    # Алексей: 2-2
+    b.stay("m2", "hall_a", 6, 66, ring_chair="2-2", hands_chair="2-2")
+    for gid, m in (("c1", 51), ("c2", 71), ("c3", 91), ("c4", 86)):
+        b.leave(gid, m)
+    for gid in ("m1", "m2"):
+        b.fill(gid, "hall_a", 0.5, 100)
+    # компания из двух человек на диване — не визиты
+    b.person("g1"); b.person("g2")
+    b.enter("g1", 10); b.enter("g2", 10)
+    b.stay("g1", "hall_a", 10.5, 60); b.stay("g2", "hall_a", 10.5, 60)
+    b.leave("g1", 61); b.leave("g2", 61)
     return b

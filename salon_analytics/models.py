@@ -37,13 +37,25 @@ class Tick:
     dt: float = 1.0
     chair: Optional[str] = None        # физическое кресло, в котором сидит (таз в полигоне)
     sitting: bool = False
-    ring_chair: Optional[str] = None   # кресло, в кольце 0.4–1.2 м которого стоит
-    hands_on: bool = False             # руки у головы сидящего (по скелету)
+    # Кольца соседних кресел перекрываются (2-1/2-2/2-3 стоят в ~1.2 м),
+    # поэтому «рядом» и «руками» — разные кресла: ring_chair — ближайшее ЗАНЯТОЕ
+    # кресло, в кольце 0.4–1.2 м которого стоит; hands_chair — кресло, у головы
+    # сидящего в котором сейчас запястья (см. scene.resolve_staff).
+    ring_chair: Optional[str] = None
+    hands_on: bool = False             # руки у головы клиента в ring_chair (старый формат)
     cameras_ok: bool = True            # все камеры зоны отдавали кадры
+    hands_chair: Optional[str] = None
 
     @property
     def present(self) -> bool:
         return self.zone != ZONE_OUTSIDE
+
+    @property
+    def hands_target(self) -> Optional[str]:
+        """Кресло, с клиентом которого работают руки в этот момент."""
+        if self.hands_chair:
+            return self.hands_chair
+        return self.ring_chair if self.hands_on else None
 
 
 @dataclass

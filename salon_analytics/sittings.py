@@ -56,22 +56,30 @@ def build_segments(ticks: Iterable[Tick], persons: dict[str, Person],
 
 def attach_master_time(segments: list[ChairSegment], ticks: Iterable[Tick],
                        persons: dict[str, Person], cfg: SalonConfig) -> None:
-    """Сколько секунд каждый сотрудник стоял в кольце кресла и работал руками."""
+    """Сколько секунд каждый сотрудник стоял у кресла и работал руками.
+
+    В кадре может быть несколько клиентов, кольца соседних кресел перекрываются.
+    Тик сотрудника засчитывается одному креслу: тому, у чьего клиента руки, а
+    если руки ни у кого — ближайшему занятому (ring_chair). Так мастер, который
+    красит клиента в 2-2, стоя ближе к 2-1, не набирает «рядом» клиенту в 2-1.
+    """
     roles = voter_roles(cfg)
     by_chair: dict[str, list[ChairSegment]] = defaultdict(list)
     for s in segments:
         by_chair[s.chair].append(s)
     for t in ticks:
-        if not t.ring_chair or t.ring_chair not in by_chair:
+        hands = t.hands_target
+        near = hands or t.ring_chair
+        if not near or near not in by_chair:
             continue
         person = persons.get(t.gid)
         if person is None or person.role not in roles:
             continue
         label = master_label(person)
-        for s in by_chair[t.ring_chair]:
+        for s in by_chair[near]:
             if s.gid != t.gid and s.start <= t.t < s.end:
                 s.near_s[label] = s.near_s.get(label, 0.0) + t.dt
-                if t.hands_on:
+                if hands:
                     s.hands_s[label] = s.hands_s.get(label, 0.0) + t.dt
 
 

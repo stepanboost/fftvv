@@ -21,7 +21,13 @@ from .rtsp import SilenceMonitor, frames, is_ir_frame, stream_url
 
 class Detector(Protocol):
     def tracks(self, camera: str, frame, ir: bool) -> list[LocalTrack]:
-        """Локальные треки одного кадра: поза, кресло, кольцо, руки, re-ID."""
+        """Локальные треки одного кадра: поза, кресло, кольцо, руки, re-ID.
+
+        В кадре бывает 3+ клиента и несколько мастеров, поэтому решения по
+        кадру принимаются сразу для всех: `scene.assign_sitters` (кто в каком
+        кресле, один к одному) и `scene.resolve_staff` (ring_chair и
+        hands_chair каждого сотрудника). По одному человеку их не считать.
+        """
 
 
 def load_detector(cfg: SalonConfig) -> Detector:
