@@ -58,6 +58,8 @@
 
 ## Запуск
 
+Установка на другой компьютер (Mac / Windows) — пошагово в [INSTALL.md](INSTALL.md).
+
 ```bash
 pip install -r requirements.txt pytest
 python -m pytest
