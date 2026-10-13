@@ -1,0 +1,8 @@
+numpy>=1.26
+scipy>=1.11
+pyyaml>=6.0
+# Только на Mac mini (детекция и признаки), в тестах не нужны:
+# ultralytics          # YOLO-pose + BoT-SORT
+# onnxruntime          # OSNet re-ID, InsightFace (CoreML EP)
+# insightface
+# opencv-python-headless

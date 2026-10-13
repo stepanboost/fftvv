@@ -1,0 +1,151 @@
+# Салон «Никольская». Регистратор Hikvision DS-H208QA, 8 каналов.
+#
+# Разметка перенесена с реальных кадров 08.10.2026 01:33 (ночь, все камеры в ИК).
+# Все координаты НОРМИРОВАНЫ 0..1 от ширины/высоты кадра: основной поток
+# (1920x1080) и суб-поток дают одни и те же числа. Точность ±2% — снято со
+# скриншотов, при настройке уточнить по полному кадру.
+#
+# ID кресел — как в разметке: «2-x» — зал 2 (в ТЗ «Зал А»: cam3 + cam4),
+# «1-x» — зал 1 (в ТЗ «Зал Б»: cam1 + cam6), M-x — мойки.
+name: Никольская
+timezone: Asia/Astrakhan     # регистратор идёт по Астрахани
+utc_offset_hours: 4          # запасной вариант, если в системе нет tzdata
+osd_date_format: "%m-%d-%Y"  # на кадре «10-08-2026 Чт» = 8 октября 2026
+
+cameras:
+  cam1:
+    channel: 1
+    zone: hall_b
+    hall: B
+    quality: poor            # кадр размыт/засвечен (объектив? запотевание?) — почистить
+    notes: "зал 1; полигоны на кадре не читаются, разметить заново после чистки"
+  cam2:
+    channel: 2
+    zone: wash
+    hall: wash
+    mirror_masks:
+      - [[0.393, 0.0], [0.565, 0.0], [0.565, 0.428], [0.393, 0.428]]   # стеклянная дверь/зеркало
+  cam3:
+    channel: 3
+    zone: hall_a
+    hall: A
+    resolution: [1920, 1080]
+    zones:
+      # временный вход, пока cam5 не смотрит в салон: стеклянная дверь видна сверху по центру
+      entrance: [[0.58, 0.0], [0.74, 0.0], [0.76, 0.36], [0.56, 0.36]]
+      door_to_wash: [[0.0, 0.370], [0.092, 0.370], [0.092, 0.832], [0.0, 0.832]]
+      sofa: [[0.104, 0.788], [0.364, 0.788], [0.364, 1.0], [0.104, 1.0]]
+      desk: [[0.625, 0.788], [0.833, 0.788], [0.833, 1.0], [0.625, 1.0]]        # касса
+      door_to_hall1: [[0.885, 0.462], [1.0, 0.462], [1.0, 1.0], [0.885, 1.0]]
+    ignore_masks:
+      - [[0.27, 0.03], [0.34, 0.03], [0.34, 0.26], [0.27, 0.26]]   # фигурка у лестницы
+      - [[0.10, 0.29], [0.17, 0.29], [0.17, 0.52], [0.10, 0.52]]   # бюсты-манекены на полке
+      - [[0.0, 0.0], [0.30, 0.0], [0.30, 0.06], [0.0, 0.06]]       # OSD дата/время
+  cam4:
+    channel: 4
+    zone: hall_a
+    hall: A
+    mirror_masks:
+      - [[0.322, 0.0], [0.482, 0.0], [0.482, 0.117], [0.322, 0.117]]
+  cam5:
+    channel: 5
+    zone: entrance
+    quality: "off"           # сейчас улица/нет сигнала — нужен канал или новая камера на уровне лица
+  cam6:
+    channel: 6
+    zone: hall_b
+    hall: B
+    notes: "зал 1; два кресла видны, разметка не читается со скриншота"
+  cam7:
+    channel: 7
+    zone: stairs
+    hall: stairs
+    notes: "лестница + барбер-кресло (центр-верх кадра)"
+  cam8:
+    channel: 8
+    zone: barber
+    hall: barber
+    resolution: [1280, 720]
+    quality: poor            # мутный кадр
+    notes: "полигон «??-8» уходил за кадр; кресло фактически в правом верхнем углу"
+
+chairs:
+  # Зал 2 (ТЗ: зал А). Одно физическое кресло — два вида: полигон на полу cam3 и бокс на cam4.
+  "2-1":
+    hall: A
+    views:
+      - {camera: cam3, polygon: "2-1", priority: 1,
+         points: [[0.263, 0.554], [0.363, 0.554], [0.374, 0.758], [0.249, 0.758]]}
+      - {camera: cam4, polygon: "chair 2-1", priority: 2, box: [0.391, 0.133, 0.492, 0.297]}
+  "2-2":
+    hall: A
+    views:
+      - {camera: cam3, polygon: "2-2", priority: 2,
+         points: [[0.445, 0.554], [0.552, 0.554], [0.561, 0.758], [0.438, 0.758]]}
+      - {camera: cam4, polygon: "chair 2-2", priority: 1, box: [0.797, 0.386, 0.904, 0.658]}
+  "2-3":
+    hall: A
+    views:
+      - {camera: cam3, polygon: "2-3", priority: 1,
+         points: [[0.634, 0.554], [0.739, 0.554], [0.750, 0.758], [0.624, 0.758]]}
+      - {camera: cam4, polygon: "chair 2-3", priority: 2, box: [0.438, 0.634, 0.653, 1.0]}
+  "2-4":
+    hall: wash
+    views:
+      - {camera: cam2, polygon: "chair 2-4", priority: 1, box: [0.448, 0.493, 0.707, 0.963]}
+  M-1:
+    hall: wash
+    kind: wash
+    views:
+      - {camera: cam2, polygon: "wash M-1", priority: 1, box: [0.579, 0.306, 0.710, 0.576]}
+  M-2:
+    hall: wash
+    kind: wash
+    views:
+      - {camera: cam2, polygon: "wash M-2", priority: 1, box: [0.710, 0.306, 0.840, 0.673]}
+  M-3:
+    hall: A
+    kind: wash
+    views:
+      - {camera: cam4, polygon: "wash M-3", priority: 1, box: [0.639, 0.225, 0.783, 0.427]}
+  # Зал 1 (ТЗ: зал Б) — TODO: число кресел и разметка cam1/cam6 после чистки cam1.
+  "1-1":
+    hall: B
+    views:
+      - {camera: cam6, polygon: "chair 1-1", priority: 2}
+  "1-2":
+    hall: B
+    views:
+      - {camera: cam6, polygon: "chair 1-2", priority: 2}
+  barber-8:
+    hall: barber
+    kind: barber
+    views:
+      - {camera: cam8, polygon: "barber", priority: 1, box: [0.72, 0.10, 0.89, 0.70]}   # было «??-8» за кадром
+  stairs-1:
+    hall: stairs
+    kind: barber
+    views:
+      - {camera: cam7, polygon: "barber", priority: 1, box: [0.34, 0.09, 0.53, 0.45]}   # TODO: уточнить
+
+# Граф переходов: откуда куда можно пройти и минимальное время перехода, с.
+# Трек продолжается только в смежной зоне; потерянный ID не восстанавливается
+# в смежной зоне быстрее этого времени. Скорость — отдельно: max_speed_mps.
+# Двери по разметке cam3: door_to_wash (в мойку), door_to_hall1 (в зал 1), лестница слева.
+transitions:
+  entrance: {hall_a: 0, outside: 0}
+  hall_a: {entrance: 0, stairs: 2, wash: 1, hall_b: 1, "blind:wc": 0, "blind:wardrobe": 0}
+  stairs: {hall_a: 2, hall_b: 2, barber: 2}
+  hall_b: {hall_a: 1, stairs: 2}
+  wash: {hall_a: 1}
+  barber: {stairs: 2}
+  "blind:wc": {hall_a: 0}
+  "blind:wardrobe": {hall_a: 0, entrance: 0}
+
+blind_zones: ["blind:wc", "blind:wardrobe"]   # TODO: уточнить у заказчика
+
+params:
+  min_sitting_s: 300
+  min_sitting_barber_s: 180
+  review_conf: 0.7
+  retention_days: 90

@@ -1,0 +1,12 @@
+[project]
+name = "salon-analytics"
+version = "0.1.0"
+description = "Видеоаналитика салона: мастер → его клиенты за день"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26", "scipy>=1.11", "pyyaml>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
