@@ -164,3 +164,19 @@ def test_csv_and_storage(tmp_path):
 def test_salon_tz_offset():
     from datetime import datetime, timezone
     assert datetime(2026, 10, 5, 10, tzinfo=timezone.utc).astimezone(salon_tz(CFG)).hour == 14
+
+
+def test_probe_hides_password_and_checks_file_source(tmp_path):
+    import shutil
+    import subprocess
+
+    from salon_analytics.pipeline.probe import hide_password, run_probe
+    assert hide_password("rtsp://admin:p%40ss@10.0.0.5:554/x: refused") == "rtsp://admin:***@10.0.0.5:554/x: refused"
+    if not shutil.which("ffmpeg"):
+        pytest.skip("нет ffmpeg")
+    src = tmp_path / "cam3.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=10",
+                    "-t", "1", "-pix_fmt", "yuv420p", str(src)], check=True)
+    res = run_probe(CFG, "", tmp_path / "out", "admin", "", sources={"cam3": str(src)}, timeout=10)
+    assert res[0].ok and (res[0].width, res[0].height) == (640, 360)
+    assert (tmp_path / "out" / "cam3.png").exists() and (tmp_path / "out" / "report.txt").exists()

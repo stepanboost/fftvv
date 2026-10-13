@@ -3,6 +3,7 @@
     python -m salon_analytics demo --out out/
     python -m salon_analytics report --ticks ticks.jsonl --persons persons.json --out out/
     python -m salon_analytics markup --config config/salon.yaml
+    NVR_PASSWORD=... python -m salon_analytics probe --nvr 192.168.1.64 --out probe/
 """
 from __future__ import annotations
 
@@ -74,7 +75,31 @@ def main(argv: list[str] | None = None) -> None:
             sp.add_argument("--outages")
     mp = sub.add_parser("markup", help="проверка разметки камер и реестра кресел")
     mp.add_argument("--config", default=str(DEFAULT_CONFIG))
+    pp = sub.add_parser("probe", help="подключиться к регистратору и проверить все камеры")
+    pp.add_argument("--config", default=str(DEFAULT_CONFIG))
+    pp.add_argument("--nvr", help="IP регистратора в сети салона")
+    pp.add_argument("--user", default=None, help="логин (или NVR_USER), пароль — NVR_PASSWORD или ввод")
+    pp.add_argument("--main", action="store_true", help="основной поток вместо суб-потока")
+    pp.add_argument("--source", action="append", default=[], metavar="CAM=URL",
+                    help="подменить источник камеры (файл/URL), можно несколько раз")
+    pp.add_argument("--out", default="probe")
+    pp.add_argument("--timeout", type=float, default=15)
     args = ap.parse_args(argv)
+    if args.cmd == "probe":
+        import getpass
+        import os
+
+        from .pipeline.probe import run_probe
+        sources = dict(s.split("=", 1) for s in args.source) or None
+        if sources is None and not args.nvr:
+            ap.error("нужен --nvr или --source")
+        user = args.user or os.environ.get("NVR_USER", "admin")
+        password = os.environ.get("NVR_PASSWORD")
+        if sources is None and password is None:
+            password = getpass.getpass(f"пароль {user}@{args.nvr}: ")
+        res = run_probe(load_config(args.config), args.nvr or "", Path(args.out), user, password or "",
+                        sub=not args.main, sources=sources, timeout=args.timeout)
+        raise SystemExit(0 if res and all(r.ok for r in res) else 1)
     if args.cmd == "markup":
         issues = markup.validate(load_config(args.config))
         for i in issues:
